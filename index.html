@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Map Study - Tactile Lock</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+    }
+    canvas {
+      display: block;
+    }
+    #ui {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.9);
+      padding: 10px;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <button id="startBtn">Start Trial</button>
+    <label><input type="checkbox" id="lockMode"> Enable Tactile Lock</label>
+    <p id="status">Status: Waiting</p>
+  </div>
+  <canvas id="map"></canvas>
+  <script>
+    const canvas = document.getElementById('map');
+    const ctx = canvas.getContext('2d');
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+
+    let mapSize = 3000;
+    let origin = { x: mapSize / 2, y: mapSize / 2 };
+    let target = { x: 500, y: 500, r: 20 };
+
+    let offsetX = -origin.x + width / 2;
+    let offsetY = -origin.y + height / 2;
+    let dragging = false;
+    let startX, startY;
+    let trialStarted = false;
+    let reachedTarget = false;
+    let trialStartTime = 0;
+    let trialEndTime = 0;
+    let lockActive = false;
+    let lockedAxis = null;
+
+    const status = document.getElementById('status');
+    const startBtn = document.getElementById('startBtn');
+    const lockMode = document.getElementById('lockMode');
+
+    function drawMap() {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.save();
+      ctx.translate(offsetX, offsetY);
+
+      // Draw cross at origin
+      ctx.strokeStyle = '#ccc';
+      ctx.beginPath();
+      ctx.moveTo(0, origin.y);
+      ctx.lineTo(mapSize, origin.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(origin.x, 0);
+      ctx.lineTo(origin.x, mapSize);
+      ctx.stroke();
+
+      // Red dot (target)
+      if (!reachedTarget) {
+        ctx.fillStyle = 'red';
+        ctx.beginPath();
+        ctx.arc(target.x, target.y, target.r, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+
+      // Origin marker
+      ctx.fillStyle = 'blue';
+      ctx.beginPath();
+      ctx.arc(origin.x, origin.y, 10, 0, 2 * Math.PI);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function screenToMap(x, y) {
+      return { x: x - offsetX, y: y - offsetY };
+    }
+
+    function checkTargetClick(x, y) {
+      const pt = screenToMap(x, y);
+      const dx = pt.x - target.x;
+      const dy = pt.y - target.y;
+      return dx * dx + dy * dy <= target.r * target.r;
+    }
+
+    function checkReturnToOrigin() {
+      const dx = offsetX + origin.x - width / 2;
+      const dy = offsetY + origin.y - height / 2;
+      return Math.abs(dx) < 20 && Math.abs(dy) < 20;
+    }
+
+    function animate() {
+      drawMap();
+      requestAnimationFrame(animate);
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+      dragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      lockedAxis = null;
+    });
+
+    canvas.addEventListener('mouseup', () => {
+      dragging = false;
+      lockedAxis = null;
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      let dx = e.clientX - startX;
+      let dy = e.clientY - startY;
+
+      // Check lock mode
+      if (lockMode.checked && trialStarted && reachedTarget) {
+        const centerX = -offsetX + width / 2;
+        const centerY = -offsetY + height / 2;
+        if (!lockedAxis) {
+          if (Math.abs(centerX - origin.x) < 10) lockedAxis = 'x';
+          if (Math.abs(centerY - origin.y) < 10) lockedAxis = 'y';
+        }
+        if (lockedAxis === 'x') dy = 0;
+        if (lockedAxis === 'y') dx = 0;
+      }
+
+      offsetX += dx;
+      offsetY += dy;
+      startX = e.clientX;
+      startY = e.clientY;
+
+      if (trialStarted && reachedTarget && checkReturnToOrigin()) {
+        trialEndTime = Date.now();
+        trialStarted = false;
+        status.innerText = `Status: Trial complete. Time to return: ${(trialEndTime - trialStartTime) / 1000}s`;
+      }
+    });
+
+    canvas.addEventListener('click', (e) => {
+      if (!trialStarted || reachedTarget) return;
+      if (checkTargetClick(e.clientX, e.clientY)) {
+        reachedTarget = true;
+        status.innerText = 'Status: Now return to origin...';
+      }
+    });
+
+    startBtn.addEventListener('click', () => {
+      offsetX = -origin.x + width / 2;
+      offsetY = -origin.y + height / 2;
+      trialStarted = true;
+      reachedTarget = false;
+      trialStartTime = Date.now();
+      status.innerText = 'Status: Trial started. Find and click the red dot...';
+    });
+
+    animate();
+  </script>
+</body>
+</html>
